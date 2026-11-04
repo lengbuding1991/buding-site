@@ -76,7 +76,7 @@ services:
       TZ: Asia/Shanghai
       ADMIN_PASSWORD: "buding2026"
       SESSION_SECRET: "change-me-to-openssl-rand-hex-32"
-      SITE_URL: "https://lbuding.com"
+      SITE_URL: "https://www.lbuding.com"
       SITE_SECURE_COOKIE: "0"
     mem_limit: 512m
     healthcheck:
@@ -154,45 +154,77 @@ http://NAS的IP:3110
 
 ### 现状（先看清楚）
 
-`lbuding.com` 现在被 Cloudflare 代理到了「大灯库存台」（`ytzs.lbuding.com` 也是它）。要把它换给个人网站，得在 Cloudflare 后台改两处。
+`lbuding.com` 原本被 Cloudflare 代理到「大灯库存台」。大灯库存台迁到阿里云之后，裸域就空出来了，现在给个人网站用。`ytzs.lbuding.com` 仍然独立指向阿里云 `101.200.131.44`，**改 `lbuding.com` 的 DNS 完全不影响它**。
 
-### 目标接线
+### 最终采用的接线（已验证可用）
+
+裸域 `lbuding.com` 上 **建不出「隧道」类型记录**：那个名字上压着 MX / TXT / NS，Cloudflare 拒绝自动创建；而手动建 CNAME 指向 `xxxx.cfargotunnel.com` 在裸域又会 `HTTP 530 / error 1016`（因为 `cfargotunnel.com` 在公共 DNS 里根本不解析，只有 CF 边缘内部认）。
+
+所以走标准做法：**站点挂在 `www`，裸域 301 跳过去。**
 
 ```
-lbuding.com  →  Cloudflare Tunnel（隧道 nas）→  HTTP →  localhost:3110
+www.lbuding.com  →  隧道 nas  →  HTTP  →  192.168.1.197:3110   ← 站点正主
+lbuding.com      →  301 重定向  →  https://www.lbuding.com      ← 裸域跳过去
 ```
 
-### 具体步骤
+### 第 1 步：给 www 建隧道记录
 
-1. 打开 Cloudflare → 选 `lbuding.com` 这个域名。
-2. **Zero Trust → Networks → Tunnels**，找到名字叫 `nas` 的隧道（就是工作台在用的那个），点进 **Public Hostname**。
-3. 加一条（或改一条）：
-   - **Subdomain**：留空（代表裸域 `lbuding.com`），或填 `@`
-   - **Domain**：`lbuding.com`
-   - **Type**：`HTTP`
-   - **URL**：`localhost:3110`（或 `192.168.1.197:3110`，localhost 更稳）
-4. 保存。回到 **DNS → 记录**，确认 `lbuding.com` 有一条指向 `…cfargotunnel.com` 的 **CNAME**，且是**橙云**（已代理）。
-   - 如果它现在还是 A 记录指向 `104.21.34.41`（大灯库存台的 CF IP），要把这条改掉——改成上面隧道给的 CNAME 目标。
+1. Cloudflare → 选 `lbuding.com` 域名。
+2. **Zero Trust → Networks → Tunnels** → 隧道 `nas` → **路由 / Public Hostname** → 添加：
+   - 目标：`www.lbuding.com`
+   - 类型：`HTTP`
+   - 服务：`http://192.168.1.197:3110`
+3. 保存。回 **DNS → 记录**，应出现 **类型：隧道、内容：`nas`、已代理**（跟 `workbench.lbuding.com` 一模一样）。
 
-### 三条链路缺一不可
+```bash
+dig +short www.lbuding.com          # 104.21.x.x / 172.67.x.x
+curl -I https://www.lbuding.com/    # 502 就是对的：隧道通了，容器还没起
+```
+
+### 第 2 步：给裸域一条占位 A 记录
+
+**DNS → 记录 → 添加记录**：类型 `A`、名称 `@`、IPv4 `192.0.2.1`、**已代理（橙云）**。
+
+> `192.0.2.1` 是 RFC 5737 的文档保留地址，永远不会被真的连接——请求在 Cloudflare 边缘就被第 3 步的重定向规则截走了。没有这条记录，`lbuding.com` 根本不解析，重定向规则也就不会触发。
+
+### 第 3 步：加重定向规则
+
+**规则 / Rules → 重定向规则 / Redirect Rules → 创建规则**，选「重定向到其他域」模板，然后改成：
+
+| 字段 | 值 |
+|---|---|
+| 规则名称 | `apex-to-www` |
+| 如果传入请求匹配 | **自定义筛选表达式** |
+| 表达式 | `http.host eq "lbuding.com"` |
+| 类型 | 动态 / Dynamic |
+| 表达式 | `concat("https://www.lbuding.com", http.request.uri.path)` |
+| 状态码 | `301` |
+| 保留查询字符串 | ✅ 勾上 |
+
+```bash
+curl -I https://lbuding.com/              # 301 → https://www.lbuding.com/
+curl -I "https://lbuding.com/posts/x?a=1" # 301 → https://www.lbuding.com/posts/x?a=1
+```
+
+### 几条链路缺一不可
 
 | 环节 | 在哪配 | 配好长什么样 |
 |---|---|---|
-| 隧道 Public Hostname | Zero Trust → Tunnels → `nas` | `lbuding.com` → `HTTP` → `localhost:3110` |
-| DNS 记录 | 域名 → DNS | 类型 `CNAME`，名称 `@`/留空，目标 `…cfargotunnel.com`，橙云 |
+| 隧道路由 | Zero Trust → Tunnels → `nas` | `www.lbuding.com` → HTTP → `http://192.168.1.197:3110` |
+| DNS（www） | 域名 → DNS | 类型 **隧道**，内容 `nas`，已代理 |
+| DNS（裸域） | 域名 → DNS | 类型 **A**，值 `192.0.2.1`，已代理 |
+| 重定向 | 规则 → 重定向规则 | `http.host eq "lbuding.com"` → 301 → `www.lbuding.com` |
 | 容器监听 | compose | `ports: "3110:3100"` |
 
 ### 怎么快速自查
 
 ```bash
-# 1. DNS 有没有走 CF
-dig +short lbuding.com
-# 应该返回 104.21.x.x / 172.67.x.x，不是大灯库存台的源站 IP
-
-# 2. 应用本身活着没
-curl -s https://lbuding.com/api/health
-# 返回 {"ok":true,"sha":"…"} 就是整条链路通了
+dig +short www.lbuding.com                    # 104.21.x.x / 172.67.x.x
+curl -s https://www.lbuding.com/api/health    # {"ok":true,"sha":"…"} 全通
+curl -I https://lbuding.com/                  # 301
 ```
+
+> ⚠️ 因为站点跑在 `www` 上，compose 里的 `SITE_URL` 必须是 `https://www.lbuding.com`（它决定 RSS / sitemap / 分享卡里的绝对链接）。
 
 ---
 
