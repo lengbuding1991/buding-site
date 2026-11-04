@@ -24,7 +24,7 @@
 顺序不能反：
 
 1. **拉镜像** —— 镜像已由 GitHub Actions 打好，存在 GHCR 里，NAS 直接拉。
-2. **建 Docker 项目** —— 粘贴一段 compose，把 `buding-site` 和 `watchtower` 两个容器跑起来。
+2. **建 Docker 项目** —— 粘贴一段 compose，把 `buding-site` 容器跑起来（更新靠工作台已有的 watchtower，见第三节）。
 3. **把域名接过来** —— 让 `lbuding.com` 经 Cloudflare 隧道打到 NAS 的 3110 端口。
 
 ### ⚠️ 两个和「个人工作台」不一样的地方
@@ -33,7 +33,7 @@
 |---|---|---|
 | 端口 | 宿主机 3100 | 宿主机 **3110**（3100 被工作台占了） |
 | 数据目录 | `/volume1/docker/workbench/data` | `/volume1/docker/buding-site/data` |
-| 更新方式 | 设置页有「立即更新」按钮 | **没有按钮**，靠 watchtower 每 24h 自动查，或手动在 Docker 客户端点「更新」 |
+| 更新方式 | 设置页有「立即更新」按钮 | **没有按钮**，复用工作台的 watchtower 每 24h 自动查，或手动在 Docker 客户端点「更新」 |
 
 ---
 
@@ -94,30 +94,19 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-  watchtower:
-    image: ghcr.io/containrrr/watchtower:latest
-    container_name: watchtower
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      TZ: Asia/Shanghai
-      DOCKER_API_VERSION: "1.40"
-      WATCHTOWER_CLEANUP: "true"
-      WATCHTOWER_ROLLING_RESTART: "true"
-      WATCHTOWER_LABEL_ENABLE: "true"
-      WATCHTOWER_POLL_INTERVAL: "86400"
-      WATCHTOWER_NO_STARTUP_MESSAGE: "true"
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
 ```
 
-4. 点 **部署**（或「应用」），等两个容器都变 running。
+4. 点 **部署**（或「应用」），等 `buding-site` 容器变 running。
+
+### ⚠️ 为什么这里【没有】watchtower 段
+
+个人工作台那个项目已经起了一个 watchtower（`container_name: watchtower`），它挂了 `/var/run/docker.sock`、开着 `WATCHTOWER_LABEL_ENABLE=true`，看到的是**整个 NAS 的所有容器**（跨项目），会更新**所有**带 `com.centurylinklabs.watchtower.enable=true` 标签的容器。
+
+所以个人网站**不要**再起第二个 watchtower：
+- 起了会报 `Conflict: container name "watchtower" already in use`（容器名全局唯一）；
+- 就算换个名字，两个 watchtower 也会抢着更新同一批容器，更糟。
+
+本文件只给 `buding-site` 打上同一个标签（上面 `labels` 那行），就会被工作台已有的 watchtower 自动更新，什么都不用额外做。
 
 ### 这段配置里几个要点
 
@@ -134,7 +123,7 @@ services:
 - `ADMIN_PASSWORD`：后台登录密码，默认 `buding2026`，改成你自己的。
 - `SESSION_SECRET`：在**任意一台电脑**上跑 `openssl rand -hex 32`，把输出填进来（别用「随便敲一串」）。这个不改成默认值的话，会有人能伪造你的登录会话。
 
-**`/var/run/docker.sock`** —— watchtower 靠它操作容器。介意的话把 watchtower 那段删掉，改用「手动更新」（见第七节）。
+**`/var/run/docker.sock`** —— 那是工作台项目里 watchtower 挂载的，用来操作容器。本项目的 compose 里【没有】这一段（见上面「为什么没有 watchtower 段」），你不用管它。工作台那个 watchtower 已经覆盖了本站的自动更新。
 
 ---
 
@@ -267,5 +256,5 @@ curl -s localhost:3100/api/health
 | 内存上限 | 512MB |
 | 健康检查 | 每 30s 打 `/api/health`（无鉴权，返回 `{ok,sha,at}`） |
 | 种子数据 | 首次空库自动灌 6 篇示例文章（`SITE_SEED=0` 可关） |
-| 更新 | watchtower 每 24h 查 GHCR `latest`，digest 变了自动重建 |
+| 更新 | 复用工作台的 watchtower：每 24h 查 GHCR `latest`，digest 变了自动重建（本站只打标签、不起新 watchtower） |
 | 停止信号 | tini 做 1 号进程，能干净收 SIGTERM |
