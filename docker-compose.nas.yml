@@ -1,14 +1,17 @@
 # 个人网站 —— Docker Compose（绿联 NAS 用）
 #
-# 更新策略（复用「个人工作台」已有的 watchtower）：
-#   · 工作台那个 watchtower 挂了 /var/run/docker.sock、开着 WATCHTOWER_LABEL_ENABLE=true，
+# 更新策略（用 NAS 上独立的 watchtower 项目，本文件不含 watchtower）：
+#   · watchtower 挂了 /var/run/docker.sock、开着 WATCHTOWER_LABEL_ENABLE=true，
 #     它看到的是整个 NAS 的所有容器（跨 compose 项目），会更新所有带
 #     com.centurylinklabs.watchtower.enable=true 标签的容器。
-#   · 所以本文件【不】再起第二个 watchtower（起了反而会和工作台那个抢着更新同一批容器），
-#     只给 buding-site 打上同一个标签，就能被现有的 watchtower 自动更新。
-#   · 想立刻用就在 Docker 客户端「项目 → buding-site → 更新」手动拉。
+#   · 本文件只给 buding-site 打标签，就能被那个 watchtower 自动更新。
+#   · 想立刻更新：Docker 客户端「项目 → buding-site → 更新」，或用后台的「立即更新」按钮。
+#
+# 网络：额外接入中立的 wt-net 网络，这样容器内能用 http://watchtower:8080
+#       调 watchtower 的 HTTP API（后台「立即更新」按钮靠它）。
 #
 # 数据在 ./data（容器里的 /data），重建容器不会碰它。
+
 
 services:
   buding-site:
@@ -17,7 +20,7 @@ services:
     container_name: buding-site
     restart: unless-stopped
 
-    # 只有打了这个标签的容器才归 watchtower 管（工作台那个 watchtower 会识别它）。
+    # 只有打了这个标签的容器才归 watchtower 管（NAS 上那个独立的 watchtower 项目会识别它）。
     # 工作台已经占用了宿主机的 3100，这里映射到 3110，容器内仍是 3100。
     # CF Tunnel 的 Service 填 http://localhost:3110。
     labels:
@@ -64,3 +67,15 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+    # default = 本项目的网络；wtnet = 给 watchtower 通信用的中立网络。
+    # 接进去后容器里可以用 http://watchtower:8080 调它的 HTTP API。
+    networks:
+      - default
+      - wtnet
+
+networks:
+  wtnet:
+    external: true
+    name: wt-net
+
