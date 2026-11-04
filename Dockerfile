@@ -51,7 +51,8 @@ RUN apk add --no-cache libc6-compat tini su-exec \
 # standalone 里已经带了一份最小 node_modules，不用再装依赖
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# 本项目的静态资源都在 app/ 下（icon.svg / opengraph-image.png），没有 public/ 目录。
+# 不要 COPY public：git 不追踪空目录，checkout 后 public 不存在，COPY 会报 not found。
 
 # 入口脚本先以 root 修 /data 的属主，再降到 nextjs 跑应用。
 # 原因：NAS 图形界面建的宿主机目录是 root 的，不改属主首次建库就 EACCES。
