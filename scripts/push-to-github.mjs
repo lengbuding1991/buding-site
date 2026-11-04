@@ -93,7 +93,9 @@ try {
   const ref = await gh(`/repos/${REPO}/git/ref/heads/${BRANCH}`);
   remoteHead = ref.object.sha;
 } catch (e) {
-  if (!/→ 404/.test(String(e.message))) throw e;
+  // 空仓库时 GET ref 返回 409（"Git Repository is empty"），视为「远端无提交」。
+  // 真正不存在的分支是 404。
+  if (!/→ (404|409)/.test(String(e.message))) throw e;
 }
 
 /**
@@ -124,10 +126,14 @@ function localIndexOf(remoteSha) {
 }
 
 let startIdx = remoteHead ? localIndexOf(remoteHead) + 1 : 0;
-if (remoteHead && startIdx === 0) {
+// --onto-remote：远端有提交但跟本地对不上（典型：空仓库先用 contents API 放了
+// README 初始化）。此时把远端 head 当 parent，本地完整历史直接叠上去，不再要映射。
+const ontoRemote = process.argv.includes("--onto-remote");
+if (remoteHead && startIdx === 0 && !ontoRemote) {
   console.error(
     `远端 head ${remoteHead.slice(0, 7)} 在本地找不到，也没有对照记录。\n` +
-      `如果确认远端内容就等于本地某个提交，用 --base=<本地sha> 指定，然后重跑。`,
+      `如果确认远端内容就等于本地某个提交，用 --base=<本地sha> 指定，然后重跑；\n` +
+      `如果只是想「在远端 init 提交之上叠上本地全部历史」，加 --onto-remote。`,
   );
   const forced = process.argv.find((a) => a.startsWith("--base="));
   if (!forced) process.exit(2);
@@ -138,6 +144,10 @@ if (remoteHead && startIdx === 0) {
     process.exit(2);
   }
   startIdx = idx + 1;
+}
+if (ontoRemote && remoteHead && startIdx === 0) {
+  // 明确告诉下面：从本地第 0 个提交起推，parent 用远端 head，不做 diff
+  startIdx = 0;
 }
 const todo = allCommits.slice(startIdx);
 console.log(`${REPO}#${BRANCH}：远端 ${remoteHead?.slice(0, 7) ?? "空"}，待推 ${todo.length} 个提交`);

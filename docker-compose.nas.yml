@@ -68,9 +68,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/localtime:/etc/localtime:ro
 
-    expose:
-      - "8080"
-
     environment:
       TZ: Asia/Shanghai
       # 关键一行：绿联的 Docker 引擎比较新，必须写 1.40
