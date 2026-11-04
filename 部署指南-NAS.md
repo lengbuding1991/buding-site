@@ -117,7 +117,7 @@ services:
 - 在客户端「文件管理」里先建好 `docker/buding-site/data` 这个空文件夹也行。
 - **不用手动改属主**：镜像入口脚本会先 `chown -R nextjs:nodejs /data` 再降权运行。
 
-**`SITE_SECURE_COOKIE: "0"`** —— 别改成 1。程序会自己看 `X-Forwarded-Proto` 决定要不要给登录 cookie 加 Secure。走 CF 隧道是 https 会自动加；你在家里用 `http://NAS的IP:3110` 直连时是 http 不加。**强写 1 会导致 http 下浏览器丢 cookie、登录后一直跳回登录页**（工作台在阿里云那台踩过这个坑）。
+**`SITE_SECURE_COOKIE: "0"`** —— 别改成 1。「0」是「自动判断」：程序自己看 `X-Forwarded-Proto` 决定要不要给登录 cookie 加 Secure。走 CF 隧道是 https 会自动加；你在家里用 `http://NAS的IP:3110` 直连时是 http 不加。**只有写 1 才是「强制 Secure」，那会导致 http 下浏览器丢 cookie、登录后一直跳回登录页**（工作台在阿里云那台踩过这个坑）。
 
 **`ADMIN_PASSWORD` / `SESSION_SECRET`** —— 部署后一定要改：
 - `ADMIN_PASSWORD`：后台登录密码，默认 `buding2026`，改成你自己的。
