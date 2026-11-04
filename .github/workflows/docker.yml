@@ -53,3 +53,17 @@ jobs:
           provenance: false
           build-args: |
             SITE_SHA=${{ github.sha }}
+
+      # 清掉旧版本，只留最新 2 个。
+      # 为什么要它：每个版本是一份完整快照，堆多了以后翻起来很乱。
+      # latest 永远跟着最新那次构建，保留最新 2 个则 latest 必在内。
+      - name: 清理旧镜像版本（只留最新 2 个）
+        # 清理失败不该让整个构建显示红叉：镜像已经推上去了，
+        # 只是没删成旧版本而已。真失败了去手动跑 cleanup-images。
+        continue-on-error: true
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: buding-site
+          package-type: container
+          min-versions-to-keep: 2
+          token: ${{ secrets.PACKAGES_PAT || secrets.GITHUB_TOKEN }}
