@@ -1,0 +1,17 @@
+# 构建上下文里别塞这些没用的东西，否则镜像层会变得又大又慢
+node_modules
+.next
+.git
+.github
+data
+design
+previews
+shots
+tools
+deploy
+*.md
+!README.md
+.DS_Store
+*.log
+.env.local
+.env.*.local

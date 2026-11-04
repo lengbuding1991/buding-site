@@ -1,0 +1,88 @@
+# 个人网站 —— Docker Compose（绿联 NAS 用）
+#
+# 更新策略（和工作台一样）：
+#   · 平时 watchtower 每 24 小时自动检查一次（兜底）
+#   · 想立刻用就在 Docker 客户端「项目 → buding-site → 更新」手动拉
+#
+# 数据在 ./data（容器里的 /data），重建容器不会碰它。
+
+services:
+  buding-site:
+    # GitHub Actions 构建好的 arm64 镜像（公开包，匿名可拉）
+    image: ghcr.io/lengbuding1991/buding-site:latest
+    container_name: buding-site
+    restart: unless-stopped
+
+    # 只有打了这个标签的容器才归 watchtower 管。
+    # 工作台已经占用了宿主机的 3100，这里映射到 3110，容器内仍是 3100。
+    # CF Tunnel 的 Service 填 http://localhost:3110。
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+    ports:
+      - "3110:3100"
+
+    volumes:
+      # 数据库（site.db + wal/shm），全在这一个目录里
+      - ./data:/data
+      # 固定时区
+      - /etc/localtime:/etc/localtime:ro
+
+    environment:
+      TZ: Asia/Shanghai
+      # 后台密码（部署后请改掉默认值）
+      ADMIN_PASSWORD: "buding2026"
+      # 会话签名密钥（部署后请换成 openssl rand -hex 32 的输出）
+      SESSION_SECRET: "change-me-to-openssl-rand-hex-32"
+      # 站点对外地址（影响 OG 图 / RSS / sitemap 里的绝对链接）
+      SITE_URL: "https://lbuding.com"
+      # 保持 0：程序自己看 cloudflared 传来的 X-Forwarded-Proto 决定要不要 Secure。
+      # 强制写 1 的话，你在家里用 http://NAS的IP:3110 就登不进去后台了。
+      SITE_SECURE_COOKIE: "0"
+
+    mem_limit: 512m
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  watchtower:
+    image: ghcr.io/containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro
+
+    expose:
+      - "8080"
+
+    environment:
+      TZ: Asia/Shanghai
+      # 关键一行：绿联的 Docker 引擎比较新，必须写 1.40
+      DOCKER_API_VERSION: "1.40"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_ROLLING_RESTART: "true"
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: "86400"
+      WATCHTOWER_NO_STARTUP_MESSAGE: "true"
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

@@ -1,0 +1,55 @@
+# 把代码打成 arm64 镜像，推到 GHCR，供 NAS 直接拉取。
+#
+# 为什么需要这个：
+#   NAS 上只有图形界面（UGOS Pro 的「项目」页面），它只会 `docker pull`，
+#   没有 `docker compose build`。所以在 GitHub 上把镜像预先构建好，
+#   让 NAS 那边只要「拉一个现成的镜像」就能跑。
+#
+# 为什么用 ubuntu-24.04-arm 而不是 QEMU：
+#   QEMU 模拟 arm64 时 `next build` 会被 `qemu: uncaught target signal 4
+#   (Illegal instruction)` 干掉（SWC 的原生二进制在模拟器里跑不了）。
+#   换成 GitHub 原生的 arm64 runner 就没有这问题，而且快得多。
+name: build-image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          build-args: |
+            SITE_SHA=${{ github.sha }}
