@@ -20,7 +20,7 @@ export default async function AdminHome() {
 
       <main className="admin-main">
         <h1 className="admin-h1">文章</h1>
-        <p className="admin-sub">这里写的东西会出现在前台的「Writing」区块。草稿只有你能看到。</p>
+        <p className="admin-sub">这里写的文章会出现在前台「文章」区块。草稿只有你能看到。</p>
 
         <div className="stat-row">
           <div className="stat accent"><b>{s.published}</b><span>已发布</span></div>

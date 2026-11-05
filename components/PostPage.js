@@ -4,8 +4,8 @@ import { getPublishedBySlug, listPublished } from '@/lib/db';
 import { t } from '@/lib/content';
 import { renderMarkdown, readingTime } from '@/lib/markdown';
 import Topbar from '@/components/Topbar';
-import Atmos from '@/components/Atmos';
 import Behaviors from '@/components/Behaviors';
+import Backdrop from '@/components/Backdrop';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +32,6 @@ export default async function PostPage({ params, lang = 'zh' }) {
 
   return (
     <>
-      <Atmos />
       <Topbar
         nav={c.nav}
         langLabel={c.langLabel}
@@ -41,6 +40,7 @@ export default async function PostPage({ params, lang = 'zh' }) {
         toDark={c.themeToDark}
         brand={c.brand}
       />
+      <Backdrop />
       <Behaviors />
 
       <article className="article">

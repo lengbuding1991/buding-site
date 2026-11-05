@@ -1,7 +1,8 @@
 import { t } from '@/lib/content';
 import Topbar from './Topbar';
-import Atmos from './Atmos';
 import Behaviors from './Behaviors';
+import Blueprint from './Blueprint';
+import Backdrop from './Backdrop';
 
 function Lede({ parts }) {
   return parts.map((p, i) => (p.strong ? <strong key={i}>{p.t}</strong> : <span key={i}>{p.t}</span>));
@@ -23,8 +24,8 @@ export default function HomePage({ lang, posts = [] }) {
 
   return (
     <>
+      <Backdrop />
       <a className="skip" href="#main">跳到主内容</a>
-      <Atmos />
       <Topbar
         nav={c.nav}
         langLabel={c.langLabel}
@@ -39,11 +40,8 @@ export default function HomePage({ lang, posts = [] }) {
         {/* ================= 首屏 ================= */}
         <section className="hero">
           <div className="hero-copy">
-            <p className="kicker mono">{c.hero.kicker}</p>
-            <h1>
-              <span className="line"><span>{c.hero.name}</span></span>
-              <span className="line"><span className="latin">{c.hero.latin}</span></span>
-            </h1>
+            <p className="kicker">{c.hero.kicker}</p>
+            <h1>{c.hero.title}</h1>
             <p className="lede">
               <Lede parts={c.hero.lede} />
             </p>
@@ -55,35 +53,8 @@ export default function HomePage({ lang, posts = [] }) {
             </div>
           </div>
 
-          <aside className="panel" aria-label={c.panel.head}>
-            <div className="panel-head">
-              <span>{c.panel.head}</span>
-              <span className="live">{c.panel.live}</span>
-            </div>
-            <dl>
-              {c.panel.rows.map((r) => (
-                <div className="row" key={r.k}>
-                  <dt>{r.k}</dt>
-                  <dd id={r.v === 'clock' ? 'clock' : undefined}>{r.v === 'clock' ? '--:--:--' : r.v}</dd>
-                </div>
-              ))}
-              <div className="row">
-                <dt>{c.panel.statusKey}</dt>
-                <dd className="ok">{c.panel.statusValue}</dd>
-              </div>
-            </dl>
-            <div className="bars" aria-hidden="true" />
-          </aside>
+          <Blueprint lang={lang} />
         </section>
-
-        {/* ================= 跑马灯 ================= */}
-        <div className="marquee" aria-hidden="true">
-          <div className="marquee-track">
-            {[...c.marquee, ...c.marquee].map((w, i) => (
-              <span key={i}>{w}</span>
-            ))}
-          </div>
-        </div>
 
         {/* ================= 作品 ================= */}
         <section className="section" id="work">
@@ -93,7 +64,7 @@ export default function HomePage({ lang, posts = [] }) {
             <span className="sec-note">{c.work.note}</span>
           </div>
 
-          <div className="work" id="workList">
+          <div className="work">
             {c.work.items.map((w, i) => (
               <a
                 className="work-item"
@@ -107,8 +78,7 @@ export default function HomePage({ lang, posts = [] }) {
                   <small>{w.desc}</small>
                 </span>
                 <span className="stack">{w.stack}</span>
-                <span className="year">{w.year}</span>
-                <span className="go" aria-hidden="true">↗</span>
+                <span className={`year${i === 0 ? ' hot' : ''}`}>{w.year}</span>
               </a>
             ))}
           </div>
@@ -141,7 +111,7 @@ export default function HomePage({ lang, posts = [] }) {
             </div>
           </div>
 
-          <div className="timeline" style={{ marginTop: 'clamp(48px, 8vh, 96px)' }}>
+          <div className="timeline">
             {c.about.timeline.map((row) => (
               <div className="tl-row" key={row.year}>
                 <div className="tl-year">{row.year}</div>
@@ -173,7 +143,7 @@ export default function HomePage({ lang, posts = [] }) {
                     <h3>{p.title}</h3>
                     {p.summary ? <p>{p.summary}</p> : null}
                   </span>
-                  <span className="tag">{p.tag || 'NOTE'}</span>
+                  <span className="tag">{p.tag || ''}</span>
                 </a>
               ))}
             </div>
@@ -187,9 +157,7 @@ export default function HomePage({ lang, posts = [] }) {
             <h2 className="sec-title">{c.contact.title}</h2>
             <span className="sec-note">{c.contact.note}</span>
           </div>
-          <p style={{ color: 'var(--muted)', maxWidth: '44ch', marginBottom: 30, fontWeight: 300 }}>
-            {c.contact.lede}
-          </p>
+          <p className="lede">{c.contact.lede}</p>
           <a className="mail" href={`mailto:${c.contact.email}`}>{c.contact.email}</a>
           <div className="socials">
             {c.contact.socials.map((s) => (

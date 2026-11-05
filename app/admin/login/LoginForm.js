@@ -35,9 +35,9 @@ export default function LoginForm() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <p className="mark">// Private Area</p>
+        <p className="mark">仅限本人使用</p>
         <h1>后台登录</h1>
-        <p className="sub">只有这里能写东西。前台是只读的。</p>
+        <p className="sub">前台是只读的，文章都在这里写。</p>
         <div className="err" role="alert">{err}</div>
         <label className="field">
           <span>密码</span>

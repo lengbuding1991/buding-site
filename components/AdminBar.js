@@ -13,7 +13,7 @@ export default function AdminBar({ children }) {
 
   return (
     <div className="admin-bar">
-      <span className="who">ADMIN <b>//</b> 冷丶布丁</span>
+      <span className="who">后台 · <b>冷丶布丁</b></span>
       <a className="icon-btn" href="/" target="_blank" rel="noopener">看前台 ↗</a>
       <span className="spacer" />
       {children}

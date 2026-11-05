@@ -2,7 +2,9 @@
 
 > 中英双语 · 明暗双主题 · SQLite 后台写作 · Next.js 15
 
-冷丶布丁的个人网站。单页长滚动 + 后台 Notion 式写作。
+冷丶布丁的个人网站。视觉上是**技术图纸**：纸底、墨水字、蓝图细线、尺寸刻度；单页长滚动 + 后台 Notion 式写作。
+
+全站单一强调色（冰蓝 `#0a68b8` / 深色 `#7fd3ff`），字体 IBM Plex Sans / Plex Mono + Noto Sans SC，字重只用 400/500/600。首屏那张链路图是 `components/Blueprint.js` 里手写的 SVG，不是背景装饰；背景那层网格与天光是 `components/Backdrop.js`。
 
 ## 本地跑
 
@@ -23,7 +25,7 @@ pnpm build && pnpm start
 ## 目录
 
 - `app/` — 页面与路由（首页 / 文章页 / 后台 / API / RSS / sitemap）
-- `components/` — 首页、顶栏、编辑器、后台等
+- `components/` — 首页、顶栏、编辑器、后台；`Blueprint.js` 是首屏链路图
 - `lib/` — 数据库（node:sqlite）、认证、文案、markdown、种子数据
 - `scripts/` — 种子脚本、推 GitHub 脚本
 - `Dockerfile` / `docker-compose.nas.yml` / `docker-entrypoint.sh` — 部署三件套
