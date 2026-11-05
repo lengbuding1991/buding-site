@@ -1,5 +1,6 @@
 import { listPublished } from '@/lib/db';
 import { t } from '@/lib/content';
+import { readVersion } from '@/lib/version';
 import HomePage from '@/components/HomePage';
 
 export const dynamic = 'force-dynamic';
@@ -17,5 +18,6 @@ export function generateMetadata() {
 export default function Page() {
   let posts = [];
   try { posts = listPublished('en', 20); } catch (e) { console.error('[db]', e.message); }
-  return <HomePage lang="en" posts={posts} />;
+  const { built } = readVersion();
+  return <HomePage lang="en" posts={posts} builtAt={built} />;
 }

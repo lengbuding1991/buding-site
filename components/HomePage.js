@@ -18,7 +18,7 @@ function fmtDate(iso, lang) {
   return lang === 'zh' ? `${y}.${m}.${day}` : `${y}-${m}-${day}`;
 }
 
-export default function HomePage({ lang, posts = [] }) {
+export default function HomePage({ lang, posts = [], builtAt = 'unknown' }) {
   const c = t(lang);
   const base = lang === 'en' ? '/en' : '';
 
@@ -169,7 +169,13 @@ export default function HomePage({ lang, posts = [] }) {
         <footer className="site-foot">
           <span>{c.footer.copy}</span>
           <span>
-            {c.footer.meta} · <a href="/admin">{c.footer.login}</a>
+            {c.footer.meta}
+            {builtAt !== 'unknown' ? (
+              <>
+                {' · '}<span className="foot-built">{c.footer.updated} {builtAt}</span>
+              </>
+            ) : null}
+            {' · '}<a href="/admin">{c.footer.login}</a>
           </span>
         </footer>
       </main>
