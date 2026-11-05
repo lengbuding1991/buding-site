@@ -48,6 +48,11 @@ services:
       # 走 CF 隧道是 https 会自动加；你在家里用 http://NAS的IP:3110 直连时是 http 不加。
       # 注意 0 是「自动判断」，不是「强制关」；只有写 1 才会强制 Secure。
       SITE_SECURE_COOKIE: "0"
+      # 后台「检查并更新」按钮调的 watchtower HTTP API（走 wt-net 网络，服务名解析）。
+      # TOKEN 必须和 watchtower 容器里的 WATCHTOWER_HTTP_API_TOKEN 完全一致，
+      # 不一致会静默 401，按钮看着点了但日志里没有 "Updates triggered"。
+      WATCHTOWER_URL: "http://watchtower:8080"
+      WATCHTOWER_TOKEN: "GCoYJ99nBwOldp1TWmAm59ZZTlurLcm4"
 
     mem_limit: 512m
 

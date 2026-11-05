@@ -37,6 +37,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # 生成一个人可读的构建时间，写进镜像的 VERSION 文件。
+      # 后台「系统更新」面板比较的就是它：点完更新后看到时间变了，就是真的更新了。
+      # 用 sha 也能比，但一串 40 位十六进制肉眼没法确认。
+      - name: 生成构建时间
+        id: meta
+        run: echo "build_date=$(TZ=Asia/Shanghai date '+%Y-%m-%d %H:%M')" >> "$GITHUB_OUTPUT"
+
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -53,6 +60,7 @@ jobs:
           provenance: false
           build-args: |
             SITE_SHA=${{ github.sha }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
 
       # 清掉旧版本，只留最新 2 个。
       # 为什么要它：每个版本是一份完整快照，堆多了以后翻起来很乱。

@@ -11,6 +11,8 @@ ARG NODE_VERSION=24-alpine
 # 构建时把提交 sha 塞进镜像，/api/health 会原样返回，
 # 这样你在 NAS 上跑 curl localhost:3100/api/health 就知道更新到哪一版了。
 ARG SITE_SHA=dev
+# 构建时间（人可读），后台「系统更新」里显示的就是它，比一串 sha 好认。
+ARG BUILD_DATE=unknown
 
 # ---------- 1. 依赖 ----------
 FROM node:${NODE_VERSION} AS deps
@@ -36,13 +38,15 @@ FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 # 全局 ARG 要在每个 stage 里重新声明一次才能用
 ARG SITE_SHA=dev
+ARG BUILD_DATE=unknown
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3100 \
     HOSTNAME=0.0.0.0 \
     DB_PATH=/data/site.db \
-    SITE_SHA=${SITE_SHA}
+    SITE_SHA=${SITE_SHA} \
+    BUILD_DATE=${BUILD_DATE}
 
 RUN apk add --no-cache libc6-compat tini su-exec \
  && addgroup -g 1001 -S nodejs \
@@ -58,6 +62,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # 原因：NAS 图形界面建的宿主机目录是 root 的，不改属主首次建库就 EACCES。
 COPY --chown=root:root docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# 把版本写进镜像里的文件，/api/health 优先读它。
+# 为什么不只靠环境变量：绿联 NAS 的图形界面允许手填环境变量，它的优先级
+# 高于镜像 ENV，会盖掉构建时的 SITE_SHA，导致 /api/health 报的版本和实际
+# 镜像对不上（2026-11-04 真踩过：镜像里是新 sha，/api/health 一直报旧 sha）。
+# 写进文件就读不出别的值。
+RUN printf '%s\n%s\n' "${SITE_SHA}" "${BUILD_DATE}" > /app/VERSION \
+ && chown nextjs:nodejs /app/VERSION
 
 # 数据放卷里，容器重建不丢（site.db + wal/shm）
 RUN mkdir -p /data && chown -R nextjs:nodejs /data

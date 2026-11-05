@@ -55,7 +55,7 @@ export default function PostList({ posts }) {
               <div className="pt">{p.title}</div>
               <div className="pm">
                 <span className={p.status === 'published' ? 'pub' : 'draft'}>
-                  {p.status === 'published' ? '● PUBLISHED' : '○ DRAFT'}
+                  {p.status === 'published' ? '● 已发布' : '○ 草稿'}
                 </span>
                 <span>{p.lang === 'zh' ? '中文' : 'EN'}</span>
                 {p.tag ? <span>{p.tag}</span> : null}

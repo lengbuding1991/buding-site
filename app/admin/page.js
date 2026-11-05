@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
 import { isAuthed } from '@/lib/auth';
 import { listAll, stats } from '@/lib/db';
+import { readVersion } from '@/lib/version';
 import AdminBar from '@/components/AdminBar';
 import PostList from './PostList';
+import SystemUpdate from './SystemUpdate';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +13,7 @@ export default async function AdminHome() {
 
   const posts = listAll();
   const s = stats();
+  const { sha, built } = readVersion();
 
   return (
     <div className="admin-shell">
@@ -31,6 +34,8 @@ export default async function AdminHome() {
         </div>
 
         <PostList posts={posts} />
+
+        <SystemUpdate initialSha={sha} initialBuilt={built} />
       </main>
     </div>
   );

@@ -24,7 +24,7 @@
 顺序不能反：
 
 1. **拉镜像** —— 镜像已由 GitHub Actions 打好，存在 GHCR 里，NAS 直接拉。
-2. **建 Docker 项目** —— 粘贴一段 compose，把 `buding-site` 容器跑起来（更新靠工作台已有的 watchtower，见第三节）。
+2. **建 Docker 项目** —— 粘贴一段 compose，把 `buding-site` 容器跑起来（自动更新靠 NAS 上的 watchtower，见第三节）。
 3. **把域名接过来** —— 让 `lbuding.com` 经 Cloudflare 隧道打到 NAS 的 3110 端口。
 
 ### ⚠️ 两个和「个人工作台」不一样的地方
@@ -33,7 +33,7 @@
 |---|---|---|
 | 端口 | 宿主机 3100 | 宿主机 **3110**（3100 被工作台占了） |
 | 数据目录 | `/volume1/docker/workbench/data` | `/volume1/docker/buding-site/data` |
-| 更新方式 | 设置页有「立即更新」按钮 | **没有按钮**，复用工作台的 watchtower 每 24h 自动查，或手动在 Docker 客户端点「更新」 |
+| 更新方式 | 设置页有「立即更新」按钮 | **后台 `/admin` 底部「系统 → 检查并更新」**，同样调 watchtower；另有每 24h 自动查兜底 |
 
 ---
 
@@ -78,6 +78,8 @@ services:
       SESSION_SECRET: "change-me-to-openssl-rand-hex-32"
       SITE_URL: "https://www.lbuding.com"
       SITE_SECURE_COOKIE: "0"
+      WATCHTOWER_URL: "http://watchtower:8080"
+      WATCHTOWER_TOKEN: "GCoYJ99nBwOldp1TWmAm59ZZTlurLcm4"
     mem_limit: 512m
     healthcheck:
       test:
@@ -94,21 +96,33 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - default
+      - wtnet
+
+networks:
+  wtnet:
+    external: true
+    name: wt-net
 ```
 
 4. 点 **部署**（或「应用」），等 `buding-site` 容器变 running。
 
 ### ⚠️ 为什么这里【没有】watchtower 段
 
-个人工作台那个项目已经起了一个 watchtower（`container_name: watchtower`），它挂了 `/var/run/docker.sock`、开着 `WATCHTOWER_LABEL_ENABLE=true`，看到的是**整个 NAS 的所有容器**（跨项目），会更新**所有**带 `com.centurylinklabs.watchtower.enable=true` 标签的容器。
+NAS 上 run 着一个**独立的 watchtower 项目**（不在工作台的 compose 里了），它挂了 `/var/run/docker.sock`、开着 `WATCHTOWER_LABEL_ENABLE=true`，看到的是**整个 NAS 的所有容器**（跨项目），会更新**所有**带 `com.centurylinklabs.watchtower.enable=true` 标签的容器。
 
 所以个人网站**不要**再起第二个 watchtower：
 - 起了会报 `Conflict: container name "watchtower" already in use`（容器名全局唯一）；
 - 就算换个名字，两个 watchtower 也会抢着更新同一批容器，更糟。
 
-本文件只给 `buding-site` 打上同一个标签（上面 `labels` 那行），就会被工作台已有的 watchtower 自动更新，什么都不用额外做。
+本文件只给 `buding-site` 打上同一个标签（上面 `labels` 那行），就会被那个 watchtower 自动更新，什么都不用额外做。
 
 ### 这段配置里几个要点
+
+**`networks: wtnet`** —— 接入一个叫 `wt-net` 的**已存在**外部网络（`external: true`）。三个容器（watchtower / workbench / buding-site）都在这个网络里，所以在 `buding-site` 容器内能直接用 `http://watchtower:8080` 叫到 watchtower。Docker 的服务名解析**只在同一网络内有效**，不接这个网络的话后台更新按钮会连不上。
+
+如果这个网络还没建：Docker → 左侧 **网络** → **新增** → 名字填 `wt-net`、驱动选 `bridge`。看不到「新增」按钮就直接在 NAS 的 SSH 里 `docker network create wt-net`。
 
 **`3110:3100`** —— 左边是 NAS 宿主机的端口，右边是容器内端口。工作台已经占了宿主机 3100，所以网站用 3110。CF 隧道那边的 Service 要填 `http://localhost:3110`。
 
@@ -119,11 +133,13 @@ services:
 
 **`SITE_SECURE_COOKIE: "0"`** —— 别改成 1。「0」是「自动判断」：程序自己看 `X-Forwarded-Proto` 决定要不要给登录 cookie 加 Secure。走 CF 隧道是 https 会自动加；你在家里用 `http://NAS的IP:3110` 直连时是 http 不加。**只有写 1 才是「强制 Secure」，那会导致 http 下浏览器丢 cookie、登录后一直跳回登录页**（工作台在阿里云那台踩过这个坑）。
 
+**`WATCHTOWER_URL` / `WATCHTOWER_TOKEN`** —— 后台「检查并更新」按钮用它。TOKEN 必须和 watchtower 容器里的 `WATCHTOWER_HTTP_API_TOKEN` **完全一致**，不一致的表现是：按钮点了没报错，但 watchtower 日志里没有 `Updates triggered by HTTP API request.`。
+
 **`ADMIN_PASSWORD` / `SESSION_SECRET`** —— 部署后一定要改：
 - `ADMIN_PASSWORD`：后台登录密码，默认 `buding2026`，改成你自己的。
 - `SESSION_SECRET`：在**任意一台电脑**上跑 `openssl rand -hex 32`，把输出填进来（别用「随便敲一串」）。这个不改成默认值的话，会有人能伪造你的登录会话。
 
-**`/var/run/docker.sock`** —— 那是工作台项目里 watchtower 挂载的，用来操作容器。本项目的 compose 里【没有】这一段（见上面「为什么没有 watchtower 段」），你不用管它。工作台那个 watchtower 已经覆盖了本站的自动更新。
+**`/var/run/docker.sock`** —— 那是 watchtower 容器挂载的，用来操作容器。本项目的 compose 里【没有】这一段（见上面「为什么没有 watchtower 段」），你不用管它。那个 watchtower 已经覆盖了本站的自动更新。
 
 ---
 
@@ -262,17 +278,29 @@ pnpm push（约 10 秒，走 GitHub API）
 
 ### 想立刻更新（不等 24h）
 
-在绿联客户端：Docker → 项目 → `buding-site` → **更新**（它会 `docker pull` 新镜像并重建）。数据在 `./data`，重建不影响。
+**方法一（推荐）：后台点按钮**
+
+登录 `/admin` → 页面底部「系统」→ 点 **检查并更新**。它会叫 watchtower 立刻拉镜像并重建容器，约半分钟生效，期间页面会短暂断开，属正常。版本号变了就说明成了。
+
+这个按钮要求容器里配了 `WATCHTOWER_URL` 和 `WATCHTOWER_TOKEN`（上面 compose 里已有），并且 `buding-site` 接进了 `wt-net` 网络，否则容器内解析不到 `watchtower` 这个服务名。
+
+**方法二：绿联客户端**
+
+Docker → 项目 → `buding-site` → **更新**（它会 `docker pull` 新镜像并重建）。数据在 `./data`，重建不影响。
+
+> ⚠️ **改过 compose 就必须重新部署一次项目**。watchtower 只换镜像，不会更新环境变量；新增的 `WATCHTOWER_*` 得靠重新创建容器才生效。之后再有更新就只需点按钮了。
 
 ### 怎么确认更新成功
 
-在绿联的「容器 → buding-site → 终端」里跑：
+打开 `https://www.lbuding.com/api/health`，或者后台「系统」那一栏直接看：
 
-```bash
-curl -s localhost:3100/api/health
+```json
+{"ok":true,"sha":"a6e5622…","built":"2026-11-06 14:20","at":"…"}
 ```
 
-返回的 `sha` 就是当前跑的提交。和 GitHub 上 `main` 最新 sha 一比就知道有没有更新到。
+- `sha` 是当前跑的提交，和 GitHub 上 `main` 最新 sha 一比就知道有没有更新到。
+- `built` 是镜像构建时间（北京时间），比 sha 更直观。
+- ⚠️ 这个 `sha` 读的是**镜像里构建时写死的 `VERSION` 文件**，不是环境变量。所以哪怕绿联界面里手工加了一个同名 `SITE_SHA`，也不会把版本号带歪 —— 2026-11-04 真踩过这个坑，镜像明明是新的、`/api/health` 却一直报旧 sha。
 
 ---
 
@@ -286,7 +314,7 @@ curl -s localhost:3100/api/health
 | 运行用户 | 入口脚本 root → `su-exec` 降权到 uid 1001 `nextjs` |
 | 时区 | `TZ=Asia/Shanghai` + 挂 `/etc/localtime` |
 | 内存上限 | 512MB |
-| 健康检查 | 每 30s 打 `/api/health`（无鉴权，返回 `{ok,sha,at}`） |
-| 种子数据 | 首次空库自动灌 6 篇示例文章（`SITE_SEED=0` 可关） |
-| 更新 | 复用工作台的 watchtower：每 24h 查 GHCR `latest`，digest 变了自动重建（本站只打标签、不起新 watchtower） |
+| 健康检查 | 每 30s 打 `/api/health`（无鉴权，返回 `{ok,sha,built,at}`） |
+| 版本号 | 读镜像内 `/app/VERSION`（构建时写入），环境变量盖不掉 |
+| 更新 | 复用 NAS 上的 watchtower：每 24h 查 GHCR `latest`，digest 变了自动重建；也可后台点「检查并更新」立刻触发 |
 | 停止信号 | tini 做 1 号进程，能干净收 SIGTERM |
